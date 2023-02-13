@@ -119,7 +119,7 @@
                             </div>
                          </div>
                         {* Search form *}
-                        <form id="fn_search" class="fn_search_mob search d-md-flex" action="{url_generator route='search'}">
+                        <form id="fn_search" class="fn_search_mob search d-md-flex" action="{url_generator route='products'}">
                             <input class="fn_search search__input" type="text" name="keyword" value="{$keyword|escape}" aria-label="search" data-language="index_search" placeholder="{$lang->index_search}"/>
                             <button class="search__button d-flex align-items-center justify-content-center" aria-label="search" type="submit"></button>
                         </form>
@@ -320,7 +320,7 @@
                                 <li class="d-flex justify-content-center align-items-center payments__item" title="{$payment_method->name|escape}">
                                     <picture>
                                         {if $settings->support_webp}
-                                            <source type="image/webp" data-srcset="{$payment_method->image|resize:80:30:false:$config->resized_payments_dir}.webp">
+                                            <source type="image/webp" data-srcset="{$payment_method->image|resize:80:30:false:$config->resized_payments_dir|webp}">
                                         {/if}
                                         <source data-srcset="{$payment_method->image|resize:80:30:false:$config->resized_payments_dir}">
                                         <img class="lazy" data-src="{$payment_method->image|resize:80:30:false:$config->resized_payments_dir}" src="{$rootUrl}/design/{get_theme}/images/xloading.gif" alt="{$payment_method->name|escape}" title="{$payment_method->name|escape}"/>
@@ -380,6 +380,10 @@
     {if $controller == 'ProductController' || $controller == "BlogController"}
         {js file="jssocials.min.js" dir='js_libraries/js_socials/js' defer=true}
     {/if}
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.5.7/jquery.fancybox.min.js" integrity="sha512-uURl+ZXMBrF4AwGaWmEetzrd+J5/8NRkWAvJx5sbPSSuOb0bZLqf+tOzniObO00BjHa/dD7gub9oCGMLPQHtQA==" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.1/jquery.validate.min.js" integrity="sha512-0QDLUJ0ILnknsQdYYjG7v2j8wERkKufvjBNmng/EdR/s/SE7X8cQ9y0+wMzuQT0lfXQ/NhG+zhmHNOWTUS3kMA==" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.devbridge-autocomplete/1.4.11/jquery.autocomplete.min.js" integrity="sha512-uxCwHf1pRwBJvURAMD/Gg0Kz2F2BymQyXDlTqnayuRyBFE7cisFCh2dSb1HIumZCRHuZikgeqXm8ruUoaxk5tA==" crossorigin="anonymous"></script>
 
     {$ok_footer}
 

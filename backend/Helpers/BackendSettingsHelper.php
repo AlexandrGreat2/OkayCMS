@@ -127,6 +127,7 @@ class BackendSettingsHelper
         $this->settings->set('increased_image_size', $this->request->post('increased_image_size', 'int'));
         $this->settings->set('features_cache_ttl', $this->request->post('features_cache_ttl', 'int'));
         $this->settings->set('deferred_load_features', $this->request->post('deferred_load_features', 'int'));
+        $this->settings->set('features_max_count_products', $this->request->post('features_max_count_products', 'int'));
         $this->settings->update('units', $this->request->post('units'));
 
         if ($this->request->post('is_preorder', 'integer')) {
@@ -155,6 +156,46 @@ class BackendSettingsHelper
     {
         $this->dataCleaner->clearAllCatalogImages();
         $this->dataCleaner->clearCatalogData();
+
+        ExtenderFacade::execute(__METHOD__, null, func_get_args());
+    }
+
+    public function clearCategorys()
+    {
+        $this->dataCleaner->clearCategoryImages();
+        $this->dataCleaner->clearCategoryData();
+
+        ExtenderFacade::execute(__METHOD__, null, func_get_args());
+    }
+
+    public function clearProducts()
+    {
+        $this->dataCleaner->clearProductImages();
+        $this->dataCleaner->clearProductVariantData();
+
+        ExtenderFacade::execute(__METHOD__, null, func_get_args());
+    }
+
+    public function clearBrands()
+    {
+        $this->dataCleaner->clearBrandImages();
+        $this->dataCleaner->clearBrandsData();
+
+        ExtenderFacade::execute(__METHOD__, null, func_get_args());
+    }
+
+    public function clearFeatures()
+    {
+        $this->dataCleaner->clearFeaturesData();
+
+        ExtenderFacade::execute(__METHOD__, null, func_get_args());
+    }
+
+    public function clearBlogs()
+    {
+        $this->dataCleaner->clearBlogImages();
+        $this->dataCleaner->clearBlogsData();
+
         ExtenderFacade::execute(__METHOD__, null, func_get_args());
     }
 

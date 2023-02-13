@@ -12,6 +12,7 @@ use Okay\Core\Routes\RouteFactory;
 use Okay\Entities\LanguagesEntity;
 use Okay\Entities\RouterCacheEntity;
 use Okay\Entities\PagesEntity;
+use Psr\Log\LoggerInterface;
 
 class Router {
 
@@ -42,6 +43,12 @@ class Router {
     /** @var Modules */
     private $modules;
 
+    /** @var LoggerInterface */
+    private $logger;
+
+    /** @var Config */
+    private $config;
+
     /** @var Languages */
     private static $languages;
 
@@ -49,13 +56,15 @@ class Router {
     private static $routeFactory;
 
     public function __construct(
-        BRouter $router,
-        Request $request,
-        Response $response,
-        EntityFactory $entityFactory,
-        Languages $languages,
-        RouteFactory $routeFactory,
-        Modules $modules
+        BRouter         $router,
+        Request         $request,
+        Response        $response,
+        EntityFactory   $entityFactory,
+        Languages       $languages,
+        RouteFactory    $routeFactory,
+        Modules         $modules,
+        LoggerInterface $logger,
+        Config          $config
     ) {
         
         // SL будем использовать только для получения сервисов, которые запросили для контроллера
@@ -68,6 +77,8 @@ class Router {
         $this->modules       = $modules;
         self::$routeFactory  = $routeFactory;
         self::$languages     = $languages;
+        $this->logger        = $logger;
+        $this->config        = $config;
     }
 
     public static function getFrontRoutes()
@@ -192,6 +203,12 @@ class Router {
                     $method = 'pageNotFound';
                 }
 
+                // If main page after slash has a space(s), like a %20
+                if (preg_match('/^[ ]+$/', $request->getPageUrl(), $matchesSpaces)) {
+                    $controllerName = self::DEFAULT_CONTROLLER_NAMESPACE . 'ErrorController';
+                    $method = 'pageNotFound';
+                }
+
                 /** @var PagesEntity $pagesEntity */
                 $pagesEntity = self::$entityFactory->get(PagesEntity::class);
                 $page = $pagesEntity->get((string) $this->request->getPageUrl());
@@ -215,7 +232,19 @@ class Router {
 
                 DebugBar::stopMeasure('router');
                 // Если контроллер вернул false, кидаем 404
-                if ($this->createControllerInstance($controllerName, $method, $params, $routeVars, $defaults) === false) {
+
+                if ($this->config->get('debug_mode')) {
+                    $result = $this->createControllerInstance($controllerName, $method, $params, $routeVars, $defaults);
+                } else {
+                    try {
+                        $result = $this->createControllerInstance($controllerName, $method, $params, $routeVars, $defaults);
+                    } catch (\Exception $exception) {
+                        $this->logger->critical($exception->getMessage());
+                        $result = false;
+                    }
+                }
+
+                if ($result === false) {
                     $this->createControllerInstance(self::DEFAULT_CONTROLLER_NAMESPACE . 'ErrorController', 'pageNotFound', $params, $routeVars, $defaults);
                 }
             });
@@ -273,7 +302,7 @@ class Router {
         $requiredParametersNames = [];
         $reflectionMethod = new \ReflectionMethod($controller, $methodName);
         foreach ($reflectionMethod->getParameters() as $parameter) {
-            if ($parameter->isDefaultValueAvailable() === false) {
+            if ($parameter->isDefaultValueAvailable() === false) {     // Если параметр не имеет значения по умолчанию в методе контроллера
                 $requiredParametersNames[] = $parameter->name;
             }
         }
@@ -283,6 +312,12 @@ class Router {
                 $this->routeRequiredParams[$name] = $paramValue;
             }
             $this->routeParams[$name] = $paramValue;
+        }
+
+        if ($this->methodExists($controller, 'beforeController')) {
+            DebugBar::startMeasure("$controllerName::beforeController", "$controllerName::beforeController");
+            call_user_func_array([$controller, 'beforeController'], $this->getMethodParams($controller, 'beforeController', $params, $routeVars, $defaults));
+            DebugBar::stopMeasure("$controllerName::beforeController");
         }
 
         // Передаем контроллеру, все, что запросили
@@ -390,11 +425,37 @@ class Router {
 
         unset($params['route']);
 
+        // Получим список всех переменных роута. Todo Вынести в отдельный метод
+        preg_match_all('~{\$([^$]*)}~', $routeInfo['slug'], $matches);
+        $routeVariables = $matches[1];
+
         // Перебираем переданные параметры, чтобы подставить их как элементы роута
         $urlData = [];
+        $query = [];
         if (!empty($params)) {
-            foreach ($params as $var=>$param) {
-                $urlData['{$' . $var . '}'] = $param;
+            foreach ($params as $var => $param) {
+                if (in_array($var, $routeVariables)) {
+                    if (is_array($param)) {
+                        $res = [];
+                        foreach ($param as $paramName => $paramValue) {
+                            if (!empty($paramValue)) {
+                                if (is_array($paramValue)) {
+                                    $res[] = $paramName . '-' . implode('_', $paramValue);
+                                } else if (is_string($paramName)) {
+                                    $res[] = $paramName.'-'.$paramValue;
+                                } else {
+                                    $res[] = $paramValue;
+                                }
+                            }
+                        }
+                        $res = implode('/', $res);
+                    } else {
+                        $res = $param;
+                    }
+                    $urlData['{$' . $var . '}'] = $res;
+                } else if ($param) {
+                    $query[$var] = $param;
+                }
             }
         }
 
@@ -419,6 +480,10 @@ class Router {
         }
 
         $result = trim(strip_tags(htmlspecialchars($result)));
+
+        if ($query) {
+            $result = $result.'?'.http_build_query($query);
+        }
         
         // TODO здесь есть скрытая связь с FilterHelper. Это может привести к багам, подумать над тем, чтобы решить это
         if (is_object($route) && method_exists($route, 'hasSlashAtEnd') && $route->hasSlashAtEnd()) {
@@ -453,7 +518,7 @@ class Router {
 
     /**
      * Добавляет новые маршруты в реестр класса роутера
-     * @param $routes
+     * @param array $routes
      * @throws \Exception Route name already uses
      * @return void
      */

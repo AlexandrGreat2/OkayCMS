@@ -119,6 +119,14 @@ class MainHelper
     }
 
     /**
+     * Метод, который можно расширять модулями. Выполняется перед работой контроллера
+     */
+    public function commonBeforeControllerProcedure()
+    {
+        ExtenderFacade::execute(__METHOD__, null, func_get_args());
+    }
+
+    /**
      * Метод, который можно расширять модулями. Выполняется он после работы контроллера
      * 
      * @var MetadataInterface|null $metadataHelper
@@ -183,6 +191,8 @@ class MainHelper
         $router = $this->SL->getService(Router::class);
         /** @var Phone $phone */
         $phone = $this->SL->getService(Phone::class);
+        /** @var FilterHelper $filterHelper */
+        $filterHelper = $this->SL->getService(FilterHelper::class);
         /** @var EntityFactory $entityFactory */
         $entityFactory = $this->SL->getService(EntityFactory::class);
         /** @var CategoriesEntity $categoriesEntity */
@@ -233,13 +243,17 @@ class MainHelper
         
         $design->assign('currencies', $this->getAllCurrencies());
         $design->assign('currency',   $this->getCurrentCurrency());
+        $design->assignJsVar('currency_cents', $this->getCurrentCurrency()->cents);
 
         $design->assign('user',       $this->getCurrentUser());
         $design->assign('group',      $this->getCurrentUserGroup());
 
         $design->assign('payment_methods', $this->getPaymentMethods());
         $design->assign('phone_example', $phone->getPhoneExample());
-        
+
+        $design->assign('keyword', $filterHelper->getKeyword());
+        $design->assign('keyword', $filterHelper->getKeyword(), true);
+
         if (!empty($settings->get('site_social_links'))) {
             $socials = [];
             foreach ($settings->get('site_social_links') as $k=>$socialUrl) {
@@ -250,7 +264,7 @@ class MainHelper
                 $social['url'] = $socialUrl;
                 $socials[] = $social;
             }
-            
+
             $design->assign('site_social', $socials);
         }
         
@@ -479,8 +493,10 @@ class MainHelper
                     $module->getModuleName($route['params']['controller'])
                 );
 
-                $design->setModuleTemplatesDir($moduleTemplateDir);
-                $design->useModuleDir();
+                if (!empty($moduleTemplateDir)) {
+                    $design->setModuleTemplatesDir($moduleTemplateDir);
+                    $design->useModuleDir();
+                }
             }
         }
         return ExtenderFacade::execute(__METHOD__, null, func_get_args());

@@ -48,6 +48,10 @@
         }
     </style>
 
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js" integrity="sha512-bnIvzh6FU75ZKxp0GXLH9bewza/OIw6dLVh9ICg0gogclmYGguQJWl8U30WpbsGTqbIiAwxTsbe76DErLq5EDQ==" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.5.7/jquery.fancybox.min.css" integrity="sha512-H9jrZiiopUdsLpg94A333EfumgUBpO9MdbxStdeITo+KEIMaNfHNvwyjjDJb+ERPaRS6DpyRlKbvPUasNItRyw==" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha512-SfTiTlX6kk+qitfevl/7LibUOeJWlt9rbyDn92a1DqWOw9vWG2MFoays0sgObmWazO5BQPiFucnnEAjpAB+/Sw==" crossorigin="anonymous">
+
     {$ok_head}
     
     {strip}
@@ -75,7 +79,7 @@
         "url": "{/literal}{url_generator route='main' absolute=1}{literal}",
         "potentialAction": {
         "@type": "SearchAction",
-        "target": "{/literal}{url_generator route='search' absolute=1}{literal}?keyword={search_term_string}",
+        "target": "{/literal}{url_generator route='products' absolute=1}{literal}?keyword={search_term_string}",
         "query-input": "required name=search_term_string"
         }
     }
