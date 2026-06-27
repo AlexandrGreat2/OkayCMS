@@ -17,6 +17,7 @@ use Okay\Core\Settings;
 use Okay\Entities\BrandsEntity;
 use Okay\Entities\CategoriesEntity;
 use Okay\Entities\CurrenciesEntity;
+use Okay\Entities\LanguagesEntity;
 use Okay\Entities\ProductsEntity;
 use Okay\Entities\RouterCacheEntity;
 use Okay\Entities\VariantsEntity;
@@ -24,6 +25,7 @@ use Okay\Helpers\XmlFeedHelper;
 use Okay\Modules\OkayCMS\Feeds\Core\InheritedExtenderTrait;
 use Okay\Modules\OkayCMS\Feeds\Entities\ConditionsEntity;
 use Okay\Modules\OkayCMS\Feeds\Entities\FeedsEntity;
+use Okay\Modules\OkayCMS\Feeds\Helpers\FeedsHelper;
 use Okay\Modules\OkayCMS\Feeds\Init\Init;
 
 abstract class AbstractPresetAdapter implements PresetAdapterInterface
@@ -54,6 +56,9 @@ abstract class AbstractPresetAdapter implements PresetAdapterInterface
 
     /** @var Response */
     protected $response;
+
+    /** @var FeedsHelper */
+    protected $feedHelper;
 
     /** @var XmlFeedHelper */
     protected $xmlFeedHelper;
@@ -103,7 +108,8 @@ abstract class AbstractPresetAdapter implements PresetAdapterInterface
         Image            $image,
         CurrenciesEntity $currenciesEntity,
         FeedsEntity      $feedsEntity,
-        CategoriesEntity $categoriesEntity
+        CategoriesEntity $categoriesEntity,
+        FeedsHelper $feedHelper
     ) {
         $this->money         = $money;
         $this->design        = $design;
@@ -115,6 +121,7 @@ abstract class AbstractPresetAdapter implements PresetAdapterInterface
         $this->settings      = $settings;
         $this->languages     = $languages;
         $this->image         = $image;
+        $this->feedHelper = $feedHelper;
 
         $this->currenciesEntity = $currenciesEntity;
         $this->feedsEntity      = $feedsEntity;
@@ -449,7 +456,19 @@ abstract class AbstractPresetAdapter implements PresetAdapterInterface
     protected function modifyItem(object $item): object
     {
         $item = $this->xmlFeedHelper->attachFeatures($item);
-        $item = $this->xmlFeedHelper->attachDescriptionByTemplate($item);
+        $metaParts = $this->xmlFeedHelper->getMetadataParts($item);
+        $item = $this->xmlFeedHelper->attachDescriptionByTemplate(
+            $item,
+            $metaParts,
+            $this->xmlFeedHelper->getDescriptionTemplate($item),
+            XmlFeedHelper::DESCRIPTION_FIELD
+        );
+        $item = $this->xmlFeedHelper->attachDescriptionByTemplate(
+            $item,
+            $metaParts,
+            $this->xmlFeedHelper->getAnnotationTemplate($item),
+            XmlFeedHelper::ANNOTATION_FIELD
+        );
         $item = $this->xmlFeedHelper->attachProductImages($item);
 
         return $this->inheritedExtender(__FUNCTION__, $item, func_get_args());

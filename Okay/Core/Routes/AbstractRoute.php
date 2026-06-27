@@ -102,6 +102,20 @@ abstract class AbstractRoute
         self::$routeAliases[$url] = $routeAlias;
     }
 
+    /**
+     * @param \StdClass[] $mappedCacheUrlSlugByUrl Массив объектов, каждый из которых содержит два свойства: `url` и `slug_url`.
+     *
+     * @property string $url
+     * @property string $slug_url
+     */
+
+    public static function mergeUrlSlugAlias($mappedCacheUrlSlugByUrl)
+    {
+        foreach ($mappedCacheUrlSlugByUrl ?? [] as $item) {
+            self::setUrlSlugAlias($item->url, $item->slug_url);
+        }
+    }
+
     public static function getUrlSlugAlias($url)
     {
         if (!empty(self::$routeAliases[$url])) {
@@ -132,7 +146,10 @@ abstract class AbstractRoute
     private function removeLangPrefix($uri)
     {
         $langLink = $this->languages->getLangLink($this->languages->getLangId());
-        return str_replace($langLink, '', $uri);
+        if (!empty($langLink)) {
+            return mb_substr($uri, mb_strlen($langLink));
+        }
+        return $uri;
     }
 
     abstract public function hasSlashAtEnd();

@@ -14,7 +14,7 @@ use Okay\Core\ManagerMenu;
 use Okay\Core\Config;
 use Okay\Core\Entity\Entity;
 use Okay\Core\Languages;
-use Okay\Entities\LanguagesEntity;
+use Okay\Admin\Helpers\BackendModulesHelper;
 
 ini_set('display_errors', 'off');
 
@@ -39,11 +39,10 @@ $time_start = microtime(true);
 if(!empty($_SERVER['HTTP_USER_AGENT'])){
     session_name(md5($_SERVER['HTTP_USER_AGENT']));
 }
+ini_set('session.gc_maxlifetime', 86400); // 86400 = 24 часа
+ini_set('session.cookie_lifetime', 0); // 0 - пока браузер не закрыт
 session_start();
 $_SESSION['id'] = session_id();
-
-@ini_set('session.gc_maxlifetime', 86400); // 86400 = 24 часа
-@ini_set('session.cookie_lifetime', 0); // 0 - пока браузер не закрыт
 
 if ($config->get('debug_mode') == true) {
     ini_set('display_errors', 'on');
@@ -69,6 +68,11 @@ if (!empty($_SESSION['admin_lang_id'])) {
     $_SESSION['admin_lang_id'] = $languages->getLangId();
 }
 
+// Оновлюємо кеш даних інформації по терміну доступу до оновлень модулів
+/** @var BackendModulesHelper $backendModulesHelper */
+$backendModulesHelper = $DI->get(BackendModulesHelper::class);
+$backendModulesHelper->updateModulesAccessExpiresCache();
+
 /** @var BackendTranslations $backendTranslations */
 $backendTranslations = $DI->get(BackendTranslations::class);
 
@@ -92,6 +96,13 @@ $design = $DI->get(Design::class);
 
 /** @var Module $module */
 $module = $DI->get(Module::class);
+
+/** @var BackendModulesHelper $modulesHelper */
+$modulesHelper = $DI->get(BackendModulesHelper::class);
+
+$module->setModulesExpires(
+    $modulesHelper->getModulesAccessExpiresFromCache()
+);
 
 // Запускаем все модули
 $modules->startAllModules();

@@ -5,7 +5,6 @@ namespace Okay\Entities;
 
 
 use Okay\Core\Entity\Entity;
-use Okay\Core\Money;
 use Okay\Core\Translit;
 use Okay\Core\Modules\Extender\ExtenderFacade;
 
@@ -23,6 +22,7 @@ class FeaturesValuesEntity extends Entity
     protected static $langFields = [
         'value',
         'translit',
+        'position',
     ];
 
     protected static $defaultOrderFields = [
@@ -252,7 +252,7 @@ class FeaturesValuesEntity extends Entity
         }
 
         if (in_array("discounted", $filters)) {
-            $otherFilter[] = '(SELECT 1 FROM __variants pv WHERE pv.product_id=pf.product_id AND pv.compare_price>0 LIMIT 1) = 1';
+            $otherFilter[] = '(SELECT 1 FROM __variants pv WHERE pv.product_id=pf.product_id AND pv.compare_price>pv.price LIMIT 1) = 1';
         }
 
         return ExtenderFacade::execute([static::class, __FUNCTION__], $otherFilter, func_get_args());
@@ -483,7 +483,7 @@ class FeaturesValuesEntity extends Entity
         $binds = [];
 
         foreach ($selectedFeatures as $featureId => $featureValuesTranslits) {
-            $statements[] = "fv.feature_id = ? AND fv.translit IN (?)";
+            $statements[] = "fv.feature_id = ? AND l.translit IN (?)";
             $binds = array_merge($binds, [
                 $featureId,
                 $featureValuesTranslits

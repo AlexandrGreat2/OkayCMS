@@ -106,7 +106,7 @@ class BackendOrderHistoryHelper
             $select ->from(DiscountsEntity::getTable())
                     ->cols(['id'])
                     ->where("((`entity` = 'order' AND `entity_id` = :order_id) OR
-                                    (`entity` = 'purchase' AND `entity_id` IN (SELECT `id` FROM `ok_purchases` WHERE `order_id` = :order_id)))")
+                                    (`entity` = 'purchase' AND `entity_id` IN (SELECT `id` FROM `__purchases` WHERE `order_id` = :order_id)))")
                     ->bindValue('order_id', $orderAfterUpdate->id);
             $discountAfterUpdateIds = $select->results('id');
             if (!empty($discountAfterUpdateIds)) {
@@ -367,20 +367,6 @@ class BackendOrderHistoryHelper
                     . " \"{$orderBeforeUpdate->last_name}\" "
                     . $this->BT->getTranslation('order_history_to')
                     . " \"{$orderAfterUpdate->last_name}\"";
-            }
-
-            // Изменил адрес
-            if (property_exists($orderBeforeUpdate, 'address')
-                && property_exists($orderAfterUpdate, 'address')
-                && $orderBeforeUpdate->address != $orderAfterUpdate->address) {
-                $changeOrderMessage[] = $this->BT->getTranslation('order_history_change')
-                    . " "
-                    . $this->BT->getTranslation('order_history_address')
-                    . " "
-                    . $this->BT->getTranslation('order_history_from')
-                    . " \"{$orderBeforeUpdate->address}\" "
-                    . $this->BT->getTranslation('order_history_to')
-                    . " \"{$orderAfterUpdate->address}\"";
             }
 
             // Изменил телефон (Изменения сравниваются и выводятся с учетом форматирования)

@@ -54,8 +54,7 @@ class VariantsEntity extends Entity
 
         $variant = parent::get($id);
 
-        $variant = $this->resetInfo($variant);
-        return $variant;
+        return $this->resetInfo($variant);
     }
 
     public function find(array $filter = [])
@@ -63,8 +62,10 @@ class VariantsEntity extends Entity
         $this->select->join('left', '__currencies AS c', 'c.id=v.currency_id');
         $variants = parent::find($filter);
 
-        foreach ($variants as &$variant) {
-            $variant = $this->resetInfo($variant);
+        if (is_object(reset($variants))) {
+            foreach ($variants as &$variant) {
+                $variant = $this->resetInfo($variant);
+            }
         }
 
         return $variants;
@@ -126,7 +127,9 @@ class VariantsEntity extends Entity
 
     protected function filter__in_stock()
     {
-        $this->select->where('(v.stock > 0 OR v.stock IS NULL)');
+        if (empty($this->settings->get('is_preorder')) || ($this->settings->get('is_preorder') != 1)) {
+            $this->select->where('(v.stock > 0 OR v.stock IS NULL)');
+        }
     }
 
     protected function filter__not_id($id)

@@ -147,19 +147,19 @@ class IndexAdmin
 
         $this->design->assign('rootUrl', $this->request->getRootUrl());
 
-        $modulesEntity = $this->entityFactory->get(ModulesEntity::class);
-        $modules = $modulesEntity->cols(['module_name'])->find();
-        if(is_dir('design/')){
-        $dirs = scandir('design/');
-        $themes = [];
-        foreach($dirs as $dir){
-            if($dir != '.' && $dir != '..' && $dir != '.htaccess'){
-                $themes [] = $dir;
-            }
-        }
-        }
-
         if (!isset($_SESSION['last_version_data'])) {
+            $modulesEntity = $this->entityFactory->get(ModulesEntity::class);
+            $modules = $modulesEntity->cols(['module_name'])->find();
+            $themes = [];
+            if(is_dir('design/')){
+                $dirs = scandir('design/');
+                foreach($dirs as $dir){
+                    if($dir != '.' && $dir != '..' && $dir != '.htaccess'){
+                        $themes [] = $dir;
+                    }
+                }
+            }
+
             $query = http_build_query([
                 'domain'  => Request::getDomain(),
                 'version' => $config->version,
@@ -173,7 +173,8 @@ class IndexAdmin
             curl_setopt($ch, CURLOPT_HEADER, 0);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
             $versionData = curl_exec($ch);
             curl_close($ch);
             
@@ -202,7 +203,7 @@ class IndexAdmin
         $isNotLocalServer = !in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '0:0:0:0:0:0:0:1']);
         if (empty($supportInfo->public_key) && !empty($supportInfo->is_auto) && $isNotLocalServer) {
             $supportInfoEntity->updateInfo(['is_auto' => 0]);
-            if ($support->getNewKeys($this->manager->email) !== false) {
+            if (!empty($this->manager) && $support->getNewKeys($this->manager->email) !== false) {
                 $this->response->addHeader("Refresh:0");
                 $this->response->sendHeaders();
                 exit();

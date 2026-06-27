@@ -5,7 +5,10 @@ namespace Okay\Core\Modules;
 
 
 use Okay\Core\DebugBar\DebugBar;
+use Okay\Core\Modules\DTO\ModificationDTO;
+use Okay\Core\Modules\DTO\ModuleParamsDTO;
 use Okay\Core\OkayContainer\OkayContainer;
+use Okay\Core\Request;
 use Okay\Core\Router;
 use Smarty;
 use Okay\Core\Design;
@@ -49,6 +52,8 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
      */
     private $smarty;
 
+    private LicenseModulesTemplates $licenseModulesTemplates;
+
     /**
      * @var array список контроллеров бекенда
      */
@@ -60,13 +65,15 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
     private $runningModules = [];
 
     /**
-     * @var array параметры модулей из файла module.json
+     * @var ModuleParamsDTO[] параметры модулей из файла module.json
      */
     private $modulesParams = [];
-    private $modulesModifications = ['front' => [], 'backend' => []];
+    private array $modulesModifications = ['front' => [], 'backend' => []];
     private $modificationsInit = false;
 
     private $plugins;
+    private int $expireModulesNum = 0;
+    private int $notLicensedModulesNum = 0;
 
     public function __construct(
         EntityFactory $entityFactory,
@@ -74,7 +81,8 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
         QueryFactory  $queryFactory,
         Database      $database,
         Config        $config,
-        Smarty        $smarty
+        Smarty        $smarty,
+        LicenseModulesTemplates $licenseModulesTemplates
     ) {
         $this->entityFactory = $entityFactory;
         $this->module        = $module;
@@ -82,6 +90,7 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
         $this->db            = $database;
         $this->config        = $config;
         $this->smarty        = $smarty;
+        $this->licenseModulesTemplates = $licenseModulesTemplates;
     }
 
     /**
@@ -114,7 +123,6 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
 
     private function startModules($activeOnly = true)
     {
-
         $select = $this->queryFactory->newSelect()
             ->from(ModulesEntity::getTable())
             ->cols(['id', 'vendor', 'module_name', 'enabled'])
@@ -122,9 +130,14 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
 
         $this->db->query($select);
         $modules = $this->db->results();
+        ModuleCache::set($modules);
 
         foreach ($modules as $module) {
-            // Запоминаем какие модули мы запустили, они понадобятся чтобы активировать их js и css
+            if (!$this->licenseModulesTemplates->isLicensedModule($module->vendor, $module->module_name)) {
+                $this->notLicensedModulesNum++;
+                continue;
+            }
+            // Запоминаем какие модули мы запустили, они понадобятся, чтобы активировать их js и css
             $this->runningModules[$module->vendor . '/' . $module->module_name] = [
                 'vendor' => $module->vendor,
                 'module_name' => $module->module_name,
@@ -143,7 +156,8 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
             }
 
             // TODO: подумать над тем, чтобы перенести этот код отсюда
-            if ($activeOnly === true && (int) $module->enabled !== 1) {
+            if (($activeOnly === true && (int)$module->enabled !== 1)
+                || !$this->licenseModulesTemplates->isLicensedModule($module->vendor, $module->module_name)) {
                 $plugins = $this->module->getSmartyPlugins($module->vendor, $module->module_name);
                 foreach ($plugins as $plugin) {
                     $reflector = new \ReflectionClass($plugin['class']);
@@ -178,20 +192,40 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
 
             if ($moduleParams = $this->module->getModuleParams($module->vendor, $module->module_name)) {
                 $this->modulesParams[$module->vendor . '/' . $module->module_name] = $moduleParams;
+                if ($moduleParams->getDaysToExpire() >= 0 || $moduleParams->isAccessExpired()) {
+                    $this->expireModulesNum++;
+                }
             }
 
             $this->backendControllersList = array_merge($this->backendControllersList, $this->startModule($module->id, $module->vendor, $module->module_name));
             DebugBar::stopMeasure("$module->vendor/$module->module_name", ['init' => '']);
         }
+        ModuleCache::flush();
     }
 
-    public function getBackendModulesTplModifications()
+    public function getExpireModulesNum(): int
+    {
+        return $this->expireModulesNum;
+    }
+
+    public function getNotLicensedModulesNum(): int
+    {
+        return $this->notLicensedModulesNum;
+    }
+
+    /**
+     * @return ModificationDTO[]
+     */
+    public function getBackendModulesTplModifications(): array
     {
         $this->initModulesModifications();
         return $this->modulesModifications['backend'];
     }
 
-    public function getFrontModulesTplModifications()
+    /**
+     * @return ModificationDTO[]
+     */
+    public function getFrontModulesTplModifications(): array
     {
         $this->initModulesModifications();
         return $this->modulesModifications['front'];
@@ -204,21 +238,21 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
         }
 
         $allowedModifiers = [
-            'append',
-            'appendBefore',
-            'prepend',
-            'appendAfter',
-            'html',
-            'text',
-            'replace',
-            'remove',
+            'setAppend' => 'getAppend',
+            'setAppendBefore' => 'getAppendBefore',
+            'setPrepend' => 'getPrepend',
+            'setAppendAfter' => 'getAppendAfter',
+            'setHtml' => 'getHtml',
+            'setText' => 'getText',
+            'setReplace' => 'getReplace',
+            'setRemove' => 'isRemove',
         ];
 
         $frontModifications = [];
         $backendModifications = [];
         if (!empty($this->modulesParams)) {
             $modulesParams = array_reverse($this->modulesParams);
-            foreach ($modulesParams as $vendorModule => $params) {
+            foreach ($modulesParams as $vendorModule => $modulesParamDTO) {
 
                 // Для выключенных модулей не нужно инициализировать модификаторы
                 if (!isset($this->runningModules[$vendorModule]) || !$this->runningModules[$vendorModule]['is_active']) {
@@ -235,55 +269,46 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
                 $moduleDir = __DIR__ . '/../../Modules/' . $vendorModule . '/';
                 $themeModuleHtmlDir = dirname(__DIR__,3).'/design/'.$themeDir.'/modules/'.$vendorModule.'/';
 
-                if (!empty($params->modifications->front)) {
-                    foreach ($params->modifications->front as $modification) {
-                        if (!empty($modification->changes)) {
-                            foreach ($modification->changes as $change) {
+                foreach ($modulesParamDTO->getFrontModifications() as $modificationDTO) {
+                    foreach ($modificationDTO->getChanges() as $changeDTO) {
 
-                                // Если не указали комментарий, добавим название модуля
-                                if (empty($change->comment)) {
-                                    $change->comment = $vendorModule;
-                                }
+                        // Если не указали комментарий, добавим название модуля
+                        if (empty($changeDTO->getComment())) {
+                            $changeDTO->setComment($vendorModule);
+                        }
 
-                                foreach ($allowedModifiers as $modifier) {
-                                    // Если в значении модификатора указано имя файла - значение считаем с самого файла
-                                    if (property_exists($change, $modifier)) {
-                                        if (is_file($themeModuleHtmlDir . 'html/' . $change->{$modifier})) {
-                                            $change->{$modifier} = file_get_contents($themeModuleHtmlDir . 'html/' . $change->{$modifier});
-                                        } else if (is_file($moduleDir . 'design/html/' . $change->{$modifier})) {
-                                            $change->{$modifier} = file_get_contents($moduleDir . 'design/html/' . $change->{$modifier});
-                                        }
-                                    }
+                        foreach ($allowedModifiers as $setMethod => $getMethod) {
+                            // Если в значении модификатора указано имя файла - значение считаем с самого файла
+                            if (!empty($changeDTO->$getMethod())) {
+                                if (is_file($themeModuleHtmlDir . 'html/' . $changeDTO->$getMethod())) {
+                                    $changeDTO->$setMethod(file_get_contents($themeModuleHtmlDir . 'html/' . $changeDTO->$getMethod()));
+                                } else if (is_file($moduleDir . 'design/html/' . $changeDTO->$getMethod())) {
+                                    $changeDTO->$setMethod(file_get_contents($moduleDir . 'design/html/' . $changeDTO->$getMethod()));
                                 }
                             }
                         }
                     }
-                    $frontModifications = array_merge($frontModifications, $params->modifications->front);
                 }
+                $frontModifications = array_merge($frontModifications, $modulesParamDTO->getFrontModifications());
 
-                if (!empty($params->modifications->backend)) {
-                    foreach ($params->modifications->backend as $modification) {
-                        if (!empty($modification->changes)) {
-                            foreach ($modification->changes as $change) {
+                foreach ($modulesParamDTO->getBackendModifications() as $modification) {
+                    foreach ($modification->getChanges() as $changeDTO) {
+                        // Если не указали комментарий, добавим название модуля
+                        if (empty($changeDTO->getComment())) {
+                            $changeDTO->setComment($vendorModule);
+                        }
 
-                                // Если не указали комментарий, добавим название модуля
-                                if (empty($change->comment)) {
-                                    $change->comment = $vendorModule;
-                                }
-
-                                foreach ($allowedModifiers as $modifier) {
-                                    // Если в занчении модификатора указано имя файла, значение считаем с самого файла
-                                    if (property_exists($change, $modifier)) {
-                                        if (is_file($moduleDir . 'Backend/design/html/' . $change->{$modifier})) {
-                                            $change->{$modifier} = file_get_contents($moduleDir . 'Backend/design/html/' . $change->{$modifier});
-                                        }
-                                    }
+                        foreach ($allowedModifiers as $setMethod => $getMethod) {
+                            // Если в значении модификатора указано имя файла - значение считаем с самого файла
+                            if (!empty($changeDTO->$getMethod())) {
+                                if (is_file($moduleDir . 'Backend/design/html/' . $changeDTO->$getMethod())) {
+                                    $changeDTO->$setMethod(file_get_contents($moduleDir . 'Backend/design/html/' . $changeDTO->$getMethod()));
                                 }
                             }
                         }
                     }
-                    $backendModifications = array_merge($backendModifications, $params->modifications->backend);
                 }
+                $backendModifications = array_merge($backendModifications, $modulesParamDTO->getBackendModifications());
             }
         }
 
@@ -315,6 +340,10 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
      */
     public function isActiveModule($vendor, $moduleName)
     {
+        if ($module = ModuleCache::get($vendor, $moduleName)) {
+            return $module->enabled;
+        }
+
         $this->db->query(
             $this->queryFactory->newSelect()
                 ->from(ModulesEntity::getTable())
@@ -358,6 +387,11 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
         $notInstalledModules = $modulesEntity->findNotInstalled();
         foreach($notInstalledModules as $module) {
             $this->mockingSmartyPlugins($module);
+            if ($moduleParams = $this->module->getModuleParams($module->vendor, $module->module_name)) {
+                if ($moduleParams->getDaysToExpire() >= 0 || $moduleParams->isAccessExpired()) {
+                    $this->expireModulesNum++;
+                }
+            }
         }
     }
 
@@ -604,5 +638,5 @@ class Modules // TODO: подумать, мож сюда переедет CRUD E
             }
         }
     }
-    
+
 }

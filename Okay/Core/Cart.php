@@ -60,10 +60,9 @@ class Cart
     private $userCartItemsEntity;
 
 
-    /** @var array
-     * Cart purchases
+    /** @var Purchase[]
      */
-    public $purchases = [];
+    public array $purchases = [];
 
     /**
      * @var int
@@ -143,7 +142,7 @@ class Cart
     public function init()
     {
         if (empty($_SESSION['user_id'])) {
-            if (!empty($_COOKIE['shopping_cart'])&& is_array($items = json_decode($_COOKIE['shopping_cart'], true))) {
+            if (!empty($_COOKIE['shopping_cart']) && is_array($items = json_decode($_COOKIE['shopping_cart'], true))) {
                 foreach ($items as $key => $item){
                     if (!empty($_SESSION['shopping_cart'][$key]))
                     {
@@ -153,7 +152,7 @@ class Cart
                     }
                 }
                 if (!empty($items)) {
-                    $this->saveShoppingCart($_SESSION['shopping_cart']);
+                    $this->saveShoppingCart($_SESSION['shopping_cart'] ?? []);
                 }
             }
 
@@ -182,6 +181,8 @@ class Cart
             }
             setcookie('shopping_cart', '', time()-3600, '/');
         }
+
+        ExtenderFacade::execute(__METHOD__, $this, func_get_args());
     }
 
     /**
@@ -217,7 +218,7 @@ class Cart
         $this->updateTotals();
     }
 
-    public function get()
+    public function get(): self
     {
         return ExtenderFacade::execute(__METHOD__, $this, func_get_args());
     }
@@ -237,7 +238,7 @@ class Cart
                 $amount = min($amount, ($variant->stock > 0 ? $variant->stock : min($this->settings->get('max_order_amount'), $amount)));
                 $_SESSION['shopping_cart'][$variantId] = intval($amount);
                 if (!empty($_SESSION['shopping_cart'])) {
-                    $this->saveShoppingCart($_SESSION['shopping_cart']);
+                    $this->saveShoppingCart($_SESSION['shopping_cart'] ?? []);
                 }
                 $this->addPurchase($variantId, $amount);
                 if ($user = $this->mainHelper->getCurrentUser()) {
@@ -268,7 +269,7 @@ class Cart
                 $amount = min($amount, ($variant->stock > 0 ? $variant->stock : min($this->settings->get('max_order_amount'), $amount)));
                 $_SESSION['shopping_cart'][$variantId] = intval($amount);
                 if (!empty($_SESSION['shopping_cart'])) {
-                    $this->saveShoppingCart($_SESSION['shopping_cart']);
+                    $this->saveShoppingCart($_SESSION['shopping_cart'] ?? []);
                 }
                 $this->updatePurchase($variantId, $amount);
                 if ($user = $this->mainHelper->getCurrentUser()) {
@@ -291,7 +292,9 @@ class Cart
     public function deleteItem($variantId)
     {
         unset($_SESSION['shopping_cart'][$variantId]);
-        $this->saveShoppingCart($_SESSION['shopping_cart']);
+
+        $this->saveShoppingCart($_SESSION['shopping_cart'] ?? []);
+
         if ($user = $this->mainHelper->getCurrentUser()) {
             $this->userCartItemsEntity->deleteByVariantId($user->id, $variantId);
         }

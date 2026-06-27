@@ -6,20 +6,89 @@ namespace Okay\Admin\Helpers;
 
 use Okay\Core\Config;
 use Okay\Core\Request;
+use Okay\Core\Settings;
 
 class BackendModulesHelper
 {
-
+    private const REQUEST_TIMEOUT = 10;
+    private const MAX_RETRY = 4;
     private $apiBaseUrl;
     private $marketplaceUrl;
     private $config;
-    
-    public function __construct(Config $config)
-    {
+    private $settings;
+
+    public function __construct(
+        Config $config,
+        Settings $settings
+    ) {
         $this->config = $config;
-        
+        $this->settings = $settings;
+
         $this->marketplaceUrl = $config->get('marketplace_url');
-        $this->apiBaseUrl = $this->marketplaceUrl . 'api/v1/';
+        $this->apiBaseUrl = $this->marketplaceUrl . 'api/';
+    }
+
+    /**
+     * @return array
+     *
+     * Метод повертає інформацію з кешу про закінчення доступу до оновлень модулів
+     */
+    public function getModulesAccessExpiresFromCache(): array
+    {
+        if (($modulesExpires = $this->settings->get('modules_access_expires'))
+            && $this->settings->get('modules_access_check_date') == date('Y-m-d')) {
+            return $modulesExpires;
+        }
+        return [];
+    }
+
+    /**
+     * @return void
+     * Метод інвалідує кеш інформації про закінчення терміну доступу до оновлень модулів
+     */
+    public function resetModulesAccessExpiresCache(): void
+    {
+        $this->settings->set('modules_access_check_date', date('Y-m-d', time() - 86400));
+    }
+
+    /**
+     * @return void
+     *
+     * Метод оновлює кеш даних інформації по закінченню терміну доступу до оновлень модулів
+     */
+    public function updateModulesAccessExpiresCache(): void
+    {
+        if (empty($this->settings->get('email_for_module'))){
+            $this->settings->set('modules_access_expires', '');
+        }
+
+        // Перевіряємо чи валідний кеш
+        if ($this->getModulesAccessExpiresFromCache()) {
+            return;
+        }
+
+        $emailRequest = urlencode(base64_encode(
+            $this->settings->get('email_for_module')
+        ));
+
+        $modulesExpiresResponse = $this->request(sprintf(
+            '%sv2/modules/access/expires/email?email_request=%s',
+            $this->apiBaseUrl,
+            $emailRequest
+        ));
+
+        $modulesExpires = [];
+        if ($modulesExpiresResponse && !empty($modulesExpiresResponse->data)) {
+            foreach ($modulesExpiresResponse->data as $moduleData) {
+                $modulesExpires[$moduleData->vendor . '/' . $moduleData->moduleName] = $moduleData;
+            }
+
+            $this->settings->set('modules_access_expires', $modulesExpires);
+            $this->settings->set('modules_access_check_date', date('Y-m-d'));
+        } else {
+            $this->settings->set('modules_access_expires', [true]);
+            $this->settings->set('modules_access_check_date', date('Y-m-d'));
+        }
     }
 
     public function checkDownloadVersions($accessUrl)
@@ -37,7 +106,7 @@ class BackendModulesHelper
      * @throws \Exception
      * 
      */
-    public function downloadModule($downloadUrl)
+    public function downloadModule(string $downloadUrl)
     {
         if (!$tempFileToSave = tempnam($this->config->get('tmp_dir'), 'module_zip_')) {
             return false;
@@ -64,7 +133,7 @@ class BackendModulesHelper
         
     }
     
-    public function moveModule($moduleTmpDir, $moduleVendor, $moduleName)
+    public function moveModule($moduleTmpDir, $moduleVendor, $moduleName): bool
     {
         if (empty($moduleTmpDir) || empty($moduleVendor) || empty($moduleName)) {
             return false;
@@ -97,16 +166,31 @@ class BackendModulesHelper
             $query['page'] = $page;
         }
         
-        return $this->request($this->apiBaseUrl . 'modules/list?' . http_build_query($query));
+        return $this->request($this->apiBaseUrl . 'v1/modules/list?' . http_build_query($query));
     }
     
     public function request($url)
     {
+        if (time() < ($_SESSION['modules_request_timeout'] ?? 0)) {
+            return false;
+        }
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
         $result = json_decode(curl_exec($ch));
+
+        $retryCnt = $_SESSION['modules_request_timeout_try_cnt'] ?? 0;
+        if (curl_errno($ch)) {
+            if ($retryCnt < self::MAX_RETRY) {
+                $retryCnt++;
+            }
+            $_SESSION['modules_request_timeout'] = time() + pow(self::REQUEST_TIMEOUT, $retryCnt);
+        } else {
+            $retryCnt = 0;
+        }
+        $_SESSION['modules_request_timeout_try_cnt'] = $retryCnt;
 
         curl_close($ch);
         return $result;

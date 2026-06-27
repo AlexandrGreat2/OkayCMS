@@ -8,8 +8,9 @@ use Okay\Admin\Helpers\BackendModulesHelper;
 use Okay\Core\BackendTranslations;
 use Okay\Core\Managers;
 use Okay\Core\Modules\Installer;
-use Okay\Core\Modules\Modules;
-use Okay\Core\Validator;
+use Okay\Core\Modules\LicenseModulesTemplates;
+use Okay\Core\Modules\ModuleVersionControl;
+use Okay\Core\Request;
 use Okay\Entities\ManagersEntity;
 use Okay\Entities\ModulesEntity;
 use Okay\Core\Modules\Module;
@@ -21,10 +22,23 @@ class ModulesAdmin extends IndexAdmin
         Installer      $modulesInstaller,
         Module         $moduleCore,
         ManagersEntity $managersEntity,
-        Managers       $managersCore
+        Managers       $managersCore,
+        LicenseModulesTemplates $licenseModulesTemplates,
+        BackendModulesHelper $backendModulesHelper
     ) {
         // Обработка действий
         if ($this->request->method('post')) {
+
+            if (!empty($this->request->post('email_for_module')) && $this->settings->get('email_for_module') != $this->request->post('email_for_module')
+                || empty($this->request->post('email_for_module'))){
+                $this->settings->set('modules_access_expires', '');
+                $licenseModulesTemplates->setLicenseEmail($this->request->post('email_for_module'));
+                $backendModulesHelper->updateModulesAccessExpiresCache();
+                $licenseModulesTemplates->clearRequestRetry();
+                $licenseModulesTemplates->updateLicenseInfo();
+            }
+            $this->settings->set('email_for_module', $this->request->post('email_for_module'));
+
             if (!empty($this->request->post('install_module'))) {
                 if ($modulesInstaller->install($this->request->post('install_module'))) {
                     $this->design->clearCompiled();
@@ -87,10 +101,12 @@ class ModulesAdmin extends IndexAdmin
                 $module->preview = $preview;
             }
             $module->params = $moduleCore->getModuleParams($module->vendor, $module->module_name);
+            $module->versionControl = $moduleCore->getVersionControl();
         }
 
         $this->design->assign('modules', $modulesList);
-        
+        $this->design->assign('domain', Request::getDomain());
+
         $this->response->setContent($this->design->fetch('modules.tpl'));
     }
     
@@ -250,5 +266,11 @@ class ModulesAdmin extends IndexAdmin
             ]);
         }
         $this->response->setContent(json_encode($result), RESPONSE_JSON);
+    }
+
+    public function resetModulesAccessExpiresCache(BackendModulesHelper $modulesHelper)
+    {
+        $modulesHelper->resetModulesAccessExpiresCache();
+        $this->response->setContent(json_encode('ok'), RESPONSE_JSON);
     }
 }

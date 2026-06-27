@@ -44,7 +44,6 @@ class FastOrderController extends AbstractController
         $order->last_name = $this->request->post('last_name');
         $order->phone   = Phone::toSave($this->request->post('phone'));
         $order->email   = '';
-        $order->address = '';
         $order->comment = $frontTranslations->getTranslation('fast_order');
         $order->lang_id = $languages->getLangId();
         $order->ip      = $_SERVER['REMOTE_ADDR'];
@@ -60,7 +59,8 @@ class FastOrderController extends AbstractController
         
         /** @var OrdersEntity $ordersEntity */
         $ordersEntity = $entityFactory->get(OrdersEntity::class);
-        $orderId      = $ordersEntity->add($order);
+        $preparedOrder = $ordersHelper->prepareAdd($order);
+        $orderId       = $ordersEntity->add($preparedOrder);
 
         $amount = $this->request->post('amount', 'integer');
         if ($amount <= 0) {

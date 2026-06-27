@@ -57,8 +57,8 @@ return [
     ],
     
     /**
-     * Настройки адапреров системы. Адапрер это по сути класс, который лежит в Okay\Core\Adapters\XXX
-     * Где XXX уже подвид адапреров
+     * Настройки адаптеров системы. Адаптер это по сути класс, который лежит в Okay\Core\Adapters\XXX
+     * Где XXX уже подвид адаптеров
      */
     'adapters' => [
         'resize' => [
@@ -90,6 +90,7 @@ return [
         'smarty_cache_lifetime' => '{$smarty_cache_lifetime}',
         'smarty_force_compile'  => '{$smarty_force_compile}',
         'debug_translation'     => '{$debug_translation}',
+        'theme'                 => '{%theme%}',
     ],
     'seo' => [
         'canonical' => [
@@ -116,4 +117,12 @@ return [
             'max_filter_depth' => '{%max_filter_depth%}',
         ],
     ],
+    'notify' => [
+        'test_internal_email' => $_ENV['TEST_INTERNAL_EMAIL'] ?? '',
+    ],
+    'production_domain' => $_ENV['PRODUCTION_DOMAIN'] ?? '',
+    'license' => [
+        'compile_code_dir' => 'cache/codes/',
+        'email' => '{%email_for_module%}',
+    ]
 ];

@@ -18,7 +18,6 @@ $columnsNames = [
     'last_name'=>    'User last name',
     'phone'=>        'User phone',
     'email'=>        'User email',
-    'address'=>      'User address',
     'comment'=>      'User comment',
     'total_price'=>  'Total price',
     'currency'=>     'Currency'
@@ -119,7 +118,7 @@ if($ordersCount*$page < $totalOrders) {
 } else {
     $data = ['end'=>true, 'page'=>$page, 'totalpages'=>$totalOrders/$ordersCount];
 
-    mb_substitute_character('');
+    mb_substitute_character('none');
     file_put_contents(
         $exportFilesDir.$filename,
         mb_convert_encoding(file_get_contents($exportFilesDir.$filename), 'Windows-1251')

@@ -40,12 +40,8 @@ class CommentsAdmin extends IndexAdmin
         $children      = $backendCommentsHelper->findAnswers($comments);
         $commentsCount = $backendCommentsHelper->count($filter);
 
-        if (isset($filter['type'])) {
-            $this->design->assign('type', $filter['type']);
-        }
-
         if ($status = $backendCommentsHelper->matchStatus($filter)) {
-            $this->design->assign('type', $status);
+            $this->design->assign('status', $status);
         }
 
         if (isset($filter['type'])) {
@@ -53,7 +49,7 @@ class CommentsAdmin extends IndexAdmin
         }
 
         if (isset($filter['keyword'])) {
-            $this->design->assign('type', $filter['keyword']);
+            $this->design->assign('keyword', $filter['keyword']);
         }
 
         $this->design->assign('pages_count',    ceil($commentsCount/$filter['limit']));

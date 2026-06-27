@@ -23,7 +23,6 @@ class OrdersEntity extends Entity
         'user_id',
         'name',
         'last_name',
-        'address',
         'phone',
         'email',
         'comment',
@@ -87,25 +86,47 @@ class OrdersEntity extends Entity
             $order = (array)$order;
         }
 
+        $changePaidColumnOrderIds = [];
         if (isset($order['paid'])) {
-            $currentPaid = $this->col('paid')->findOne(['id' => $ids]);
-            if ($order['paid'] != $currentPaid) {
-                $this->markedPaid($ids, (bool)$order['paid']);
-                $order['payment_date'] = 'now()';
+            $mappedCurrentPaidOrders = $this->cols(['id', 'paid'])->mappedBy('id')->find(['id' => $ids]);
+
+            foreach ($mappedCurrentPaidOrders as $currentPaidOrder) {
+                if ($order['paid'] != $currentPaidOrder->paid) {
+                    $changePaidColumnOrderIds[] = $currentPaidOrder->id;
+                }
+            }
+
+            if (!empty($changePaidColumnOrderIds)) {
+                $this->markedPaid($changePaidColumnOrderIds, (bool)$order['paid']);
+                parent::update($changePaidColumnOrderIds, ['payment_date' => (bool)$order['paid'] == true ? 'now()' : null]);
             }
         }
         
         parent::update($ids, $order);
+
+        if (!empty($changePaidColumnOrderIds)) {
+            $this->afterMarkedPaidUpdate($changePaidColumnOrderIds, (bool)$order['paid']);
+        }
+
         return $ids;
     }
 
     /**
-     * Метод вызывается при отметке заказов как оплаченых.
-     * 
-     * @param array $ids
-     * @param bool $state
+     * Метод вызывается при отметке или снятии отметки заказов как оплаченных перед обновлением в БД
+     * @param array $ids массив айди заказов только при изменении статуса оплаты
+     * @param bool $state содержит true в случае смены заказов в "оплачен", false при снятии отметки "оплачен"
      */
     private function markedPaid(array $ids, $state)
+    {
+        ExtenderFacade::execute(__METHOD__, null, func_get_args());
+    }
+
+    /**
+     * Метод вызывается при отметке или снятии отметки заказов как оплаченных после обновления всей информации в БД
+     * @param array $ids массив айди заказов только при изменении статуса оплаты
+     * @param bool $state содержит true в случае смены заказов в "оплачен", false при снятии отметки "оплачен"
+     */
+    private function afterMarkedPaidUpdate(array $ids, $state)
     {
         ExtenderFacade::execute(__METHOD__, null, func_get_args());
     }
@@ -515,7 +536,6 @@ class OrdersEntity extends Entity
                 OR o.name LIKE :keyword_name_{$keyNum}
                 OR o.last_name LIKE :keyword_last_name_{$keyNum}
                 OR REPLACE(o.phone, '-', '') LIKE :keyword_phone_{$keyNum}
-                OR o.address LIKE :keyword_address_{$keyNum}
                 OR o.email LIKE :keyword_email_{$keyNum}
                 OR o.id IN (SELECT order_id FROM __purchases WHERE product_name LIKE :keyword_product_name_{$keyNum} OR variant_name LIKE :keyword_product_name_{$keyNum})
             )");
@@ -525,7 +545,6 @@ class OrdersEntity extends Entity
                 "keyword_name_{$keyNum}"         => '%' . $keyword . '%',
                 "keyword_last_name_{$keyNum}"         => '%' . $keyword . '%',
                 "keyword_phone_{$keyNum}"        => '%' . $keyword . '%',
-                "keyword_address_{$keyNum}"      => '%' . $keyword . '%',
                 "keyword_email_{$keyNum}"        => '%' . $keyword . '%',
                 "keyword_product_name_{$keyNum}" => '%' . $keyword . '%',
                 "keyword_product_name_{$keyNum}" => '%' . $keyword . '%',

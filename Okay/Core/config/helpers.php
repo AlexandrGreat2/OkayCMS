@@ -30,7 +30,9 @@ use Okay\Admin\Helpers\BackendUserGroupsHelper;
 use Okay\Admin\Helpers\BackendUsersHelper;
 use Okay\Admin\Helpers\BackendValidateHelper;
 use Okay\Admin\Requests\BackendOrdersRequest;
+use Okay\Core\Modules\LicenseModulesTemplates;
 use Okay\Core\Modules\Module;
+use Okay\Core\Modules\Modules;
 use Okay\Core\OkayContainer\Reference\ParameterReference as PR;
 use Okay\Core\OkayContainer\Reference\ServiceReference as SR;
 use Okay\Admin\Helpers\BackendProductsHelper;
@@ -48,6 +50,8 @@ use Okay\Helpers\BrandsHelper;
 use Okay\Helpers\CanonicalHelper;
 use Okay\Helpers\CartHelper;
 use Okay\Helpers\CategoriesHelper;
+use Okay\Helpers\OpenAiEntityHelper;
+use Okay\Helpers\OpenAiHelper;
 use Okay\Helpers\ComparisonHelper;
 use Okay\Helpers\CouponHelper;
 use Okay\Helpers\CommentsHelper;
@@ -95,6 +99,8 @@ return [
             new SR(EntityFactory::class),
             new SR(ManagerMenu::class),
             new SR(Design::class),
+            new SR(Modules::class),
+            new SR(LicenseModulesTemplates::class),
         ]
     ],
     BackendProductsHelper::class => [
@@ -140,6 +146,8 @@ return [
             new SR(Translit::class),
             new SR(Database::class),
             new SR(Request::class),
+            new SR(Languages::class),
+            new SR(Settings::class),
         ]
     ],
     BackendSpecialImagesHelper::class => [
@@ -269,6 +277,7 @@ return [
             new SR(Languages::class),
             new SR(JsSocial::class),
             new SR(Image::class),
+            new SR(LicenseModulesTemplates::class),
         ]
     ],
     BackendValidateHelper::class => [
@@ -368,6 +377,7 @@ return [
         'class' => BackendModulesHelper::class,
         'arguments' => [
             new SR(Config::class),
+            new SR(Settings::class),
         ]
     ],
     MainHelper::class => [
@@ -680,6 +690,18 @@ return [
     ],
     ConsoleQuestionHelper::class => [
         'class' => ConsoleQuestionHelper::class,
+        'arguments' => [
+        ]
+    ],
+    OpenAiHelper::class => [
+        'class' => OpenAiHelper::class,
+        'arguments' => [
+            new SR(Response::class),
+            new SR(Settings::class),
+        ]
+    ],
+    OpenAiEntityHelper::class => [
+        'class' => OpenAiEntityHelper::class,
         'arguments' => [
         ]
     ],

@@ -172,14 +172,6 @@
                                                             </div>
                                                         </div>
 
-                                                        {* User's address *}
-                                                        <div class="f_col-md-6 f_col-lg-12 f_col-xl-6">
-                                                            <div class="form__group">
-                                                                <input class="form__input form__placeholder--focus" name="address" type="text" value="{$request_data.address|escape}" data-language="form_address" >
-                                                                <span class="form__placeholder">{$lang->form_address}</span>
-                                                            </div>
-                                                        </div>
-
                                                         {* User's message *}
                                                         <div class="f_col-xl-12">
                                                             <div class="form__group form__group--last">
@@ -245,7 +237,7 @@
     <div class="cart_footer">
         <div class="container">
             <div class="cart_footer__copyright f_col-md flex-md-first d-flex align-items-center">
-                <div class="d-flex align-items-center">
+                <div>
                     <span>© {$smarty.now|date_format:"%Y"}</span>
                     <span data-language="index_copyright">{$lang->index_copyright}</span>
                 </div>

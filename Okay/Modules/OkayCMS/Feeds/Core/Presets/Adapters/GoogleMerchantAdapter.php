@@ -26,13 +26,21 @@ class GoogleMerchantAdapter extends AbstractPresetAdapter
     {
         $sql = parent::getQuery(...func_get_args());
 
-        if ($this->feed->settings['use_full_description']) {
+        if ($this->isSettingParamTrue('use_full_description')) {
             $sql->cols(['lp.description AS description']);
+        } elseif($this->isSettingParamTrue('use_full_description_if_not_exist_annotation')) {
+            $sql->cols(['lp.description AS description']);
+            $sql->cols(['lp.annotation AS annotation']);
         } else {
             $sql->cols(['lp.annotation AS annotation']);
         }
 
         return ExtenderFacade::execute(__METHOD__, $sql, func_get_args());
+    }
+
+    protected function isSettingParamTrue($param): bool
+    {
+        return isset($this->feed->settings[$param]) && $this->feed->settings[$param];
     }
 
     protected function getSubSelect($feedId): Select
@@ -96,7 +104,29 @@ class GoogleMerchantAdapter extends AbstractPresetAdapter
             $result['link']['data'] = Router::generateUrl('product', ['url' => $product->url], true);
         }
 
-        $result['description']['data'] = $this->xmlFeedHelper->escape($product->description ?? $product->annotation);
+        $description = '';
+        $canUseCdata = false;
+        if (
+            ($this->isSettingParamTrue('use_full_description_if_not_exist_annotation') && !empty($product->description) && empty($product->annotation))
+            || ($this->isSettingParamTrue('use_full_description') && !empty($product->description))
+        ) {
+            $description = $product->description;
+            $canUseCdata = true;
+        } elseif (!empty($product->annotation)) {
+            $description = $product->annotation;
+            $canUseCdata = true;
+        } elseif ($this->isSettingParamTrue('replace_description_by_name_if_empty')) {
+            $description = $result['title']['data'];
+        }
+
+        if ($canUseCdata && $this->isSettingParamTrue('description_in_html')) {
+            $description = '<![CDATA[' . $description . ']]>';
+        } else {
+            $description = $this->xmlFeedHelper->escape($description);
+        }
+
+        $result['description']['data'] = $description;
+
         $result['g:id']['data'] = $this->xmlFeedHelper->escape($product->variant_id);
 
         if (!empty($product->weight > 0)) {
@@ -144,6 +174,36 @@ class GoogleMerchantAdapter extends AbstractPresetAdapter
         }
 
         $result['g:adult']['data'] = $this->feed->settings['adult'] ? 'true' : 'false';
+
+        //добавляем атрибуты в product_detail, согласно настройкам в ok_okay_cms__feeds__feeds
+        if (isset($product->features)) {
+            foreach ($product->features as $keyFeature => $feature) {
+                $attributeName = $this->xmlFeedHelper->escape($feature['name']);
+                $attributeValue = $this->xmlFeedHelper->escape($feature['values_string']);
+                if (isset($this->feed->features_settings[$feature['id']]['name_in_feed']) && $this->feed->features_settings[$feature['id']]['name_in_feed']) {
+                    $attributeName = $this->xmlFeedHelper->escape($this->feed->features_settings[$feature['id']]['name_in_feed']);
+                }
+                if (isset($attributeName) && $attributeName
+                    && isset($attributeValue) && $attributeValue
+                    && (!isset($this->feed->features_settings[$feature['id']])  //показываем свойство, если под него нет вообще настроек
+                        || $this->feed->features_settings[$feature['id']]['to_feed']
+                    )
+                ) {
+                    $result[] = [
+                        'tag' => 'g:product_detail',
+                        'data' => [
+                            'g:attribute_name' => [
+                                'data' => $attributeName
+                            ],
+                            'g:attribute_value' => [
+                                'data' => $attributeValue
+                            ],
+                        ]
+                    ];
+                }
+            }
+        }
+        ///добавляем атрибуты в product_detail, согласно настройкам в ok_okay_cms__feeds__feeds
 
         if (($featureId = $this->feed->settings['color']) && isset($product->features[$featureId])) {
             $result['g:color']['data'] = $this->xmlFeedHelper->escape($product->features[$featureId]['values_string']);

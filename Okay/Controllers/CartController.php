@@ -4,8 +4,6 @@
 namespace Okay\Controllers;
 
 
-use Okay\Core\SmartyPlugins\Plugins\CheckoutPaymentForm;
-use Okay\Entities\PaymentsEntity;
 use Okay\Helpers\CartHelper;
 use Okay\Helpers\CouponHelper;
 use Okay\Helpers\MetadataHelpers\CartMetadataHelper;
@@ -232,5 +230,4 @@ class CartController extends AbstractController
         $cart->addItem($variantId);
         $this->response->redirectTo(Router::generateUrl('cart', [], true));
     }
-    
 }

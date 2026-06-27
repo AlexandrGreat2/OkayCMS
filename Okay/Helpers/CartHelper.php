@@ -87,13 +87,11 @@ class CartHelper
                 $defaultData['last_name'] = $lastOrder->last_name;
                 $defaultData['email'] = $lastOrder->email;
                 $defaultData['phone'] = Phone::format($lastOrder->phone);
-                $defaultData['address'] = $lastOrder->address;
             } else {
                 $defaultData['name'] = $user->name;
                 $defaultData['last_name'] = $user->last_name;
                 $defaultData['email'] = $user->email;
                 $defaultData['phone'] = Phone::format($user->phone);
-                $defaultData['address'] = $user->address;
             }
         }
 
@@ -111,8 +109,23 @@ class CartHelper
             $result['result'] = 0;
             $result['content']       = $this->design->fetch('cart.tpl');
         }
-            
+
+        if (!empty($deliveries)) {
+            foreach ($deliveries as $delivery) {
+                if (!empty($delivery) && isset($delivery->settings)) {
+                    unset($delivery->settings);
+                }
+            }
+        }
         $result['deliveries_data'] = $deliveries;
+
+        if (!empty($paymentMethods)) {
+            foreach ($paymentMethods as $paymentMethod) {
+                if (!empty($paymentMethod) && isset($paymentMethod->settings)) {
+                    unset($paymentMethod->settings);
+                }
+            }
+        }
         $result['payment_methods_data'] = $paymentMethods;
 
         if (is_file('design/' . $this->frontTemplateConfig->getTheme() . '/html/cart_coupon.tpl')) {
